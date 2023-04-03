@@ -8,7 +8,7 @@
 Collection of utility functions used throughout Hummingbird.
 """
 
-from distutils.version import LooseVersion
+from packaging.version import Version, parse
 from types import ModuleType
 import numpy as np
 import torch
@@ -26,13 +26,15 @@ def torch_installed():
     try:
         import torch
 
+        assert parse(torch.__version__) > Version("1.7.0"), "Please install torch >1.7.0"
+
         return True
     except ImportError:
         return False
 
 
 def assert_torch_installed():
-    assert torch_installed(), "To use Hummingbird you need to install torch."
+    assert torch_installed(), "To use Hummingbird you need to install torch>1.7.0."
 
 
 def onnx_ml_tools_installed():
@@ -117,7 +119,7 @@ def lightgbm_installed():
 def assert_lightgbm_installed():
     assert (
         lightgbm_installed()
-    ), "To convert LightGBM models you need to install LightGBM (or `pip install hummingbird-ml[extra]`)."
+    ), "To convert LightGBM models you need to install LightGBM (or `python -m pip install hummingbird-ml[extra]`)."
 
 
 def xgboost_installed():
@@ -138,8 +140,8 @@ def xgboost_installed():
         return False
     from xgboost import __version__
 
-    vers = LooseVersion(__version__)
-    allowed_min = LooseVersion("0.90")
+    vers = parse(__version__)
+    allowed_min = Version("0.90")
     if vers < allowed_min:
         warnings.warn("The converter works for xgboost >= 0.9. Different versions might not.")
     return True
@@ -148,7 +150,7 @@ def xgboost_installed():
 def assert_xgboost_installed():
     assert (
         xgboost_installed()
-    ), "To convert XGBoost models you need to install XGBoost (or `pip install hummingbird-ml[extra]`)."
+    ), "To convert XGBoost models you need to install XGBoost (or `python -m pip install hummingbird-ml[extra]`)."
 
 
 def tvm_installed():
@@ -195,7 +197,7 @@ def prophet_installed():
 def is_pandas_dataframe(df):
     import pandas as pd
 
-    if type(df) == pd.DataFrame:
+    if isinstance(df, pd.DataFrame):
         return True
     else:
         return False
@@ -207,7 +209,7 @@ def is_spark_dataframe(df):
 
     import pyspark
 
-    if type(df) == pyspark.sql.DataFrame:
+    if isinstance(df, pyspark.sql.DataFrame):
         return True
     else:
         return False
@@ -303,7 +305,7 @@ def check_dumped_versions(configurations, *args):
         assert isinstance(current_version, ModuleType)
         if current_version.__name__ in versions:
             loaded_version = versions[current_version.__name__]
-            if LooseVersion(loaded_version) != LooseVersion(current_version.__version__):
+            if parse(loaded_version) != parse(current_version.__version__):
                 warnings.warn(
                     "Version of {} used to save the model ({}) is different than the current version ({}).".format(
                         current_version.__name__, loaded_version, current_version.__version__

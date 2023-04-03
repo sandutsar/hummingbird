@@ -10,6 +10,7 @@ Converters for scikit-learn linear models: LinearRegression, LogisticRegression,
 
 import numpy as np
 from onnxconverter_common.registration import register_converter
+from sklearn._loss.link import LogLink
 
 from .._linear_implementations import LinearModel
 
@@ -30,17 +31,8 @@ def convert_sklearn_linear_model(operator, device, extra_config):
     """
     assert operator is not None, "Cannot convert None operator"
 
-    supported_loss = {"log", "modified_huber", "squared_hinge"}
+    supported_loss = {"log_loss", "modified_huber", "squared_hinge"}
     classes = [0] if not hasattr(operator.raw_operator, "classes_") else operator.raw_operator.classes_
-    # There is a bug in torch < 1.7.0 that causes a mismatch. See Issue #10
-    if len(classes) > 2:
-        from distutils.version import LooseVersion
-        import torch
-
-        if LooseVersion(torch.__version__) < LooseVersion("1.7.0"):
-            import warnings
-
-            warnings.warn("torch < 1.7.0 may give a mismatch on multiclass. See issue #10.")
 
     if not all(["int" in str(type(x)) for x in classes]):
         raise RuntimeError(
@@ -48,7 +40,12 @@ def convert_sklearn_linear_model(operator, device, extra_config):
         )
 
     coefficients = operator.raw_operator.coef_.transpose().astype("float32")
-    intercepts = operator.raw_operator.intercept_.reshape(1, -1).astype("float32")
+
+    intercepts = operator.raw_operator.intercept_
+    if np.ndim(intercepts) == 0:
+        intercepts = np.array(intercepts, dtype="float32")
+    else:
+        intercepts = intercepts.reshape(1, -1).astype("float32")
 
     multi_class = None
     loss = None
@@ -72,7 +69,7 @@ def convert_sklearn_linear_model(operator, device, extra_config):
 
 def convert_sklearn_linear_regression_model(operator, device, extra_config):
     """
-    Converter for `sklearn.linear_model.LinearRegression`, `sklearn.svm.LinearSVR` and `sklearn.linear_model.RidgeCV`
+    Converter for `sklearn.linear_model.LinearRegression`, `sklearn.linear_model.Lasso`, `sklearn.linear_model.ElasticNet`, `sklearn.linear_model.Ridge`, `sklearn.svm.LinearSVR` and `sklearn.linear_model.RidgeCV`
 
     Args:
         operator: An operator wrapping a `sklearn.linear_model.LinearRegression`, `sklearn.svm.LinearSVR`
@@ -85,18 +82,33 @@ def convert_sklearn_linear_regression_model(operator, device, extra_config):
     """
     assert operator is not None, "Cannot convert None operator"
 
+    loss = None
     coefficients = operator.raw_operator.coef_.transpose().astype("float32")
     if len(coefficients.shape) == 1:
         coefficients = coefficients.reshape(-1, 1)
-    intercepts = operator.raw_operator.intercept_.reshape(1, -1).astype("float32")
 
-    return LinearModel(operator, coefficients, intercepts, device, is_linear_regression=True)
+    intercepts = operator.raw_operator.intercept_
+    if np.ndim(intercepts) == 0:
+        intercepts = np.array(intercepts, dtype="float32")
+    else:
+        intercepts = intercepts.reshape(1, -1).astype("float32")
+
+    if hasattr(operator.raw_operator, "_base_loss") and type(operator.raw_operator._base_loss.link) == LogLink:
+        loss = "log"
+
+    return LinearModel(operator, coefficients, intercepts, device, loss=loss, is_linear_regression=True)
 
 
 register_converter("SklearnLinearRegression", convert_sklearn_linear_regression_model)
+register_converter("SklearnLasso", convert_sklearn_linear_regression_model)
+register_converter("SklearnElasticNet", convert_sklearn_linear_regression_model)
+register_converter("SklearnRidge", convert_sklearn_linear_regression_model)
 register_converter("SklearnLogisticRegression", convert_sklearn_linear_model)
 register_converter("SklearnLinearSVC", convert_sklearn_linear_model)
 register_converter("SklearnLinearSVR", convert_sklearn_linear_regression_model)
 register_converter("SklearnSGDClassifier", convert_sklearn_linear_model)
 register_converter("SklearnLogisticRegressionCV", convert_sklearn_linear_model)
 register_converter("SklearnRidgeCV", convert_sklearn_linear_regression_model)
+register_converter("SklearnTweedieRegressor", convert_sklearn_linear_regression_model)
+register_converter("SklearnPoissonRegressor", convert_sklearn_linear_regression_model)
+register_converter("SklearnGammaRegressor", convert_sklearn_linear_regression_model)

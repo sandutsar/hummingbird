@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/hummingbird-ml.svg)](https://badge.fury.io/py/hummingbird-ml)
 [![](https://github.com/microsoft/hummingbird/workflows/Build/badge.svg?branch=main)](https://github.com/microsoft/hummingbird/actions)
-![](https://img.shields.io/badge/3.6%20%7C%203.7%20%7C%203.8-blue)
+![](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue)
 [![coverage](https://codecov.io/gh/microsoft/hummingbird/branch/main/graph/badge.svg)](https://codecov.io/github/microsoft/hummingbird?branch=main)
 [![Gitter](https://badges.gitter.im/hummingbird-ml/community.svg)](https://gitter.im/hummingbird-ml/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 [![Downloads](https://pepy.tech/badge/hummingbird-ml)](https://pepy.tech/project/hummingbird-ml)
@@ -10,7 +10,6 @@
 <p>
     <img src="https://github.com/microsoft/hummingbird/raw/main/website/images/hb-logo-notext.png"  width=200  >
     <br>
-
 </p>
 
 ## Introduction
@@ -46,7 +45,7 @@ In this example, the decision tree has four decision nodes (orange), and five le
 <img src="https://github.com/microsoft/hummingbird/raw/main/website/images/3-matrix.png" width=450 >
 </p>
 
-**Step 2:** The `input path` tensor will be multiplied with tensor `C` that captures whether the internal node is a parent of that internal node, and if so, whether it is in the left or right sub-tree (left = 1, right =-1, otherwise =0) and then check the equals with tensor `D` that captures the count of the left child of its parent in the path from a leaf node to the tree root to create the tenor output path that represents the path from node to output. In this case, this tree model has 5 outputs with 4 conditions, therefore, the shape of tensor `C` is 4x5 and tensor `D` is 1x5.
+**Step 2:** The `input path` tensor will be multiplied with tensor `C` that captures whether the internal node is a parent of that internal node, and if so, whether it is in the left or right sub-tree (left = 1, right =-1, otherwise =0) and then check the equals with tensor `D` that captures the count of the left child of its parent in the path from a leaf node to the tree root to create the tensor output path that represents the path from node to output. In this case, this tree model has 5 outputs with 4 conditions, therefore, the shape of tensor `C` is 4x5 and tensor `D` is 1x5.
 
 <p align="center">
 <img src="https://github.com/microsoft/hummingbird/raw/main/website/images/4-matrixnext.png" width=450 >
@@ -65,18 +64,18 @@ _Thank you to [Chien Vu](https://www.linkedin.com/in/vumichien/) for contributin
 
 ## Installation
 
-Hummingbird was tested on Python >= 3.6 on Linux, Windows and MacOS machines.  (Python 3.5 is suppored up to `hummingbird-ml==0.2.1`.)  It is recommended to use a virtual environment (See: [python3 venv doc](https://docs.python.org/3/tutorial/venv.html) or [Using Python environments in VS Code](https://code.visualstudio.com/docs/python/environments).)
+Hummingbird was tested on Python 3.8, 3.9 and 3.10 on Linux, Windows and MacOS machines.  It is recommended to use a virtual environment (See: [python3 venv doc](https://docs.python.org/3/tutorial/venv.html) or [Using Python environments in VS Code](https://code.visualstudio.com/docs/python/environments).)
 
-Hummingbird requires PyTorch >= 1.4.0. Please go [here](https://pytorch.org/) for instructions on how to install PyTorch based on your platform and hardware.
+Hummingbird requires PyTorch >= 1.6.0. Please go [here](https://pytorch.org/) for instructions on how to install PyTorch based on your platform and hardware.
 
 Once PyTorch is installed, you can get Hummingbird from pip with:
 ```
-pip install hummingbird-ml
+python -m pip install hummingbird-ml
 ```
 
 If you require the optional dependencies lightgbm and xgboost, you can use:
 ```
-pip install hummingbird-ml[extra]
+python -m pip install hummingbird-ml[extra]
 ```
 
 
@@ -142,13 +141,16 @@ Also, see our [roadmap](https://github.com/microsoft/hummingbird/wiki/Roadmap-fo
 
 Join our community! [![Gitter](https://badges.gitter.im/hummingbird-ml/community.svg)](https://gitter.im/hummingbird-ml/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
- For more formal enquiries, you can [contact us](mailto:hummingbird-dev@microsoft.com).
-
 # Authors
 
-* Supun Nakandala
-* Matteo Interlandi
-* Karla Saur
+* Supun Nakandala ([@scnakandala](https://github.com/scnakandala))
+* Matteo Interlandi ([@interesaaat](https://github.com/interesaaat))
+* Karla Saur ([@ksaur](https://github.com/ksaur))
+
+# Special Thanks
+
+* Masahiro Hiramori ([@mshr-h](https://github.com/mshr-h)) for the ongoing contributions
+* Masahiro Masuda ([@masahi](https://github.com/masahi)) for the TVM and batching contributions
 
 # License
 [MIT License](LICENSE)

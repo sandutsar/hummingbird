@@ -21,6 +21,7 @@ DecisionTreeRegressor,
 ExtraTreesClassifier,
 ExtraTreesRegressor,
 FastICA,
+GammaRegressor,
 GaussianNB,
 GradientBoostingClassifier,
 GradientBoostingRegressor,
@@ -44,6 +45,7 @@ MaxAbsScaler,
 MeanShift,
 MinMaxScaler,
 MissingIndicator,
+Mixture,
 MLPClassifier,
 MLPRegressor,
 MultinomialNB,
@@ -51,6 +53,7 @@ Normalizer,
 OneHotEncoder,
 PCA,
 PLSRegression,
+PoissonRegressor,
 PolynomialFeatures,
 RandomForestClassifier,
 RandomForestRegressor,
@@ -64,6 +67,7 @@ StandardScaler,
 TreeEnsembleClassifier,
 TreeEnsembleRegressor,
 TruncatedSVD,
+TweedieRegressor,
 VarianceThreshold,
 
 **Supported Operators (LGBM)**
@@ -117,12 +121,9 @@ from ._utils import (
 
 def _build_sklearn_operator_list():
     """
-    Put all suported Sklearn operators on a list.
+    Put all supported Sklearn operators on a list.
     """
     if sklearn_installed():
-        # Enable experimental to import HistGradientBoosting*
-        from sklearn.experimental import enable_hist_gradient_boosting
-
         # Tree-based models
         from sklearn.ensemble import (
             ExtraTreesClassifier,
@@ -139,7 +140,19 @@ def _build_sklearn_operator_list():
         from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
         # Linear-based models
-        from sklearn.linear_model import LinearRegression, LogisticRegression, LogisticRegressionCV, SGDClassifier, RidgeCV
+        from sklearn.linear_model import (
+            LinearRegression,
+            LogisticRegression,
+            LogisticRegressionCV,
+            SGDClassifier,
+            RidgeCV,
+            ElasticNet,
+            Ridge,
+            Lasso,
+            TweedieRegressor,
+            PoissonRegressor,
+            GammaRegressor,
+        )
 
         # SVM-based models
         from sklearn.svm import LinearSVC, SVC, NuSVC, LinearSVR
@@ -192,6 +205,9 @@ def _build_sklearn_operator_list():
         # Features
         from sklearn.feature_selection import SelectKBest, SelectPercentile, VarianceThreshold
 
+        # Mixture models
+        from sklearn.mixture import BayesianGaussianMixture
+
         supported_ops = [
             # Trees
             DecisionTreeClassifier,
@@ -214,6 +230,12 @@ def _build_sklearn_operator_list():
             LogisticRegressionCV,
             SGDClassifier,
             RidgeCV,
+            Lasso,
+            ElasticNet,
+            Ridge,
+            TweedieRegressor,
+            PoissonRegressor,
+            GammaRegressor,
             # Clustering
             KMeans,
             MeanShift,
@@ -253,6 +275,8 @@ def _build_sklearn_operator_list():
             SelectKBest,
             SelectPercentile,
             VarianceThreshold,
+            # Mixture models
+            BayesianGaussianMixture,
         ]
 
         # Remove all deprecated operators given the sklearn version. E.g., Imputer for sklearn > 0.21.3.
@@ -263,7 +287,7 @@ def _build_sklearn_operator_list():
 
 def _build_sparkml_operator_list():
     """
-    List all suported SparkML operators.
+    List all supported SparkML operators.
     """
     if sparkml_installed():
         from pyspark.ml.classification import LogisticRegressionModel
@@ -284,7 +308,7 @@ def _build_sparkml_operator_list():
 
 def _build_xgboost_operator_list():
     """
-    List all suported XGBoost (Sklearn API) operators.
+    List all supported XGBoost (Sklearn API) operators.
     """
     if xgboost_installed():
         from xgboost import XGBClassifier, XGBRanker, XGBRegressor
@@ -296,7 +320,7 @@ def _build_xgboost_operator_list():
 
 def _build_lightgbm_operator_list():
     """
-    List all suported LightGBM (Sklearn API) operators.
+    List all supported LightGBM (Sklearn API) operators.
     """
     if lightgbm_installed():
         from lightgbm import LGBMClassifier, LGBMRanker, LGBMRegressor, Booster
@@ -309,7 +333,7 @@ def _build_lightgbm_operator_list():
 # Associate onnxml types with our operator names.
 def _build_onnxml_operator_list():
     """
-    List all suported ONNXML operators.
+    List all supported ONNXML operators.
     """
     if onnx_runtime_installed():
         return [
@@ -348,7 +372,7 @@ def _build_onnxml_operator_list():
 
 def _build_prophet_operator_list():
     """
-    List all suported Prophet (Sklearn API) operators.
+    List all supported Prophet (Sklearn API) operators.
     """
     if prophet_installed():
         from prophet import Prophet
@@ -529,7 +553,7 @@ CONTAINER = "container"
 """Boolean used to chose whether to return the container for Sklearn API or just the model."""
 
 N_THREADS = "n_threads"
-"""Select how many threads to use for scoring. This paremeter will set the number of intra-op threads.
+"""Select how many threads to use for scoring. This parameter will set the number of intra-op threads.
 Inter-op threads are by default set to 1 in Hummingbird. Check `tests.test_extra_conf.py` for usage examples."""
 
 BATCH_SIZE = "batch_size"
@@ -539,4 +563,4 @@ REMAINDER_SIZE = "remainder_size"
 """Determines the number of rows that an auxiliary remainder model can accept."""
 
 MAX_STRING_LENGTH = "max_string_length"
-"""Maximum expected length for string features. By deafult this value is set using the training information."""
+"""Maximum expected length for string features. By default this value is set using the training information."""

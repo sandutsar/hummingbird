@@ -1,5 +1,5 @@
 # basic setup
-FROM python:3.6
+FROM mcr.microsoft.com/mirror/docker/library/python:3.8-buster
 RUN apt-get update && apt-get -y update
 RUN apt-get install -y sudo git
 
@@ -14,7 +14,7 @@ RUN cd /home/hb-dev && git clone https://github.com/microsoft/hummingbird.git
 WORKDIR /home/hb-dev/hummingbird
 
 # Install HB  (Note: you may not need all of these packages and can remove some)
-RUN sudo pip install -e .[docs,tests,extra,onnx]
+RUN sudo python -m pip install -e .[docs,tests,extra,onnx]
 
 # Install precommit hooks
 RUN pre-commit install

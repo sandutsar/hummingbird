@@ -3,11 +3,23 @@ Tests sklearn linear classifiers (LinearRegression, LogisticRegression, SGDClass
 """
 import unittest
 import warnings
-from distutils.version import LooseVersion
+from packaging.version import Version, parse
 
 import numpy as np
 import torch
-from sklearn.linear_model import LinearRegression, LogisticRegression, SGDClassifier, LogisticRegressionCV, RidgeCV
+from sklearn.linear_model import (
+    LinearRegression,
+    LogisticRegression,
+    SGDClassifier,
+    LogisticRegressionCV,
+    RidgeCV,
+    Lasso,
+    ElasticNet,
+    Ridge,
+    TweedieRegressor,
+    PoissonRegressor,
+    GammaRegressor,
+)
 from sklearn import datasets
 
 import hummingbird.ml
@@ -21,11 +33,13 @@ if pandas_installed():
 class TestSklearnLinearClassifiers(unittest.TestCase):
 
     # LogisticRegression test function to be parameterized
-    def _test_logistic_regression(self, num_classes, solver="liblinear", multi_class="auto", labels_shift=0):
+    def _test_logistic_regression(
+        self, num_classes, solver="liblinear", multi_class="auto", labels_shift=0, fit_intercept=True
+    ):
         if num_classes > 2:
-            model = LogisticRegression(solver=solver, multi_class=multi_class, fit_intercept=True)
+            model = LogisticRegression(solver=solver, multi_class=multi_class, fit_intercept=fit_intercept)
         else:
-            model = LogisticRegression(solver="liblinear", fit_intercept=True)
+            model = LogisticRegression(solver="liblinear", fit_intercept=fit_intercept)
 
         np.random.seed(0)
         X = np.random.rand(100, 200)
@@ -85,9 +99,15 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
         # this will not converge due to small test size
         self._test_logistic_regression(3, multi_class="ovr", solver="lbfgs")
 
+    # LogisticRegression with fit_intercept set to False
+    def test_logistic_regression_no_intercept(self):
+        warnings.filterwarnings("ignore")
+        # this will not converge due to small test size
+        self._test_logistic_regression(3, fit_intercept=False)
+
     # LinearRegression test function to be parameterized
-    def _test_linear_regression(self, y_input):
-        model = LinearRegression()
+    def _test_linear_regression(self, y_input, fit_intercept=True):
+        model = LinearRegression(fit_intercept=fit_intercept)
 
         np.random.seed(0)
         X = np.random.rand(100, 200)
@@ -111,9 +131,107 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
         np.random.seed(0)
         self._test_linear_regression(np.random.rand(100))
 
+    # LinearRegression with fit_intercept set to False
+    def test_linear_regression_no_intercept(self):
+        np.random.seed(0)
+        self._test_linear_regression(np.random.rand(100), fit_intercept=False)
+
+    # Lasso test function to be parameterized
+    def _test_lasso(self, y_input, fit_intercept=True):
+        model = Lasso(fit_intercept=fit_intercept)
+
+        np.random.seed(0)
+        X = np.random.rand(100, 200)
+        X = np.array(X, dtype=np.float32)
+        y = y_input
+
+        model.fit(X, y)
+
+        torch_model = hummingbird.ml.convert(model, "torch")
+
+        self.assertTrue(torch_model is not None)
+        np.testing.assert_allclose(model.predict(X), torch_model.predict(X), rtol=1e-6, atol=1e-6)
+
+    # Lasso with ints
+    def test_lasso_int(self):
+        np.random.seed(0)
+        self._test_lasso(np.random.randint(2, size=100))
+
+    # Lasso with floats
+    def test_lasso_float(self):
+        np.random.seed(0)
+        self._test_lasso(np.random.rand(100))
+
+    # Lasso with fit_intercept set to False
+    def test_lasso_no_intercept(self):
+        np.random.seed(0)
+        self._test_lasso(np.random.rand(100), fit_intercept=False)
+
+    # Ridge test function to be parameterized
+    def _test_ridge(self, y_input, fit_intercept=True):
+        model = Ridge(fit_intercept=fit_intercept)
+
+        np.random.seed(0)
+        X = np.random.rand(100, 200)
+        X = np.array(X, dtype=np.float32)
+        y = y_input
+
+        model.fit(X, y)
+
+        torch_model = hummingbird.ml.convert(model, "torch")
+
+        self.assertTrue(torch_model is not None)
+        np.testing.assert_allclose(model.predict(X), torch_model.predict(X), rtol=1e-6, atol=1e-6)
+
+    # Ridge with ints
+    def test_ridge_int(self):
+        np.random.seed(0)
+        self._test_ridge(np.random.randint(2, size=100))
+
+    # Ridge with floats
+    def test_ridge_float(self):
+        np.random.seed(0)
+        self._test_ridge(np.random.rand(100))
+
+    # Ridge with fit_intercept set to False
+    def test_ridge_no_intercept(self):
+        np.random.seed(0)
+        self._test_ridge(np.random.rand(100), fit_intercept=False)
+
+    # ElasticNet test function to be parameterized
+    def _test_elastic_net(self, y_input, fit_intercept=True):
+        model = ElasticNet(fit_intercept=fit_intercept)
+
+        np.random.seed(0)
+        X = np.random.rand(100, 200)
+        X = np.array(X, dtype=np.float32)
+        y = y_input
+
+        model.fit(X, y)
+
+        torch_model = hummingbird.ml.convert(model, "torch")
+
+        self.assertTrue(torch_model is not None)
+        np.testing.assert_allclose(model.predict(X), torch_model.predict(X), rtol=1e-6, atol=1e-6)
+
+    # ElasticNet with ints
+    def test_elastic_net_int(self):
+        np.random.seed(0)
+        self._test_elastic_net(np.random.randint(2, size=100))
+
+    # ElasticNet with floats
+    def test_elastic_net_float(self):
+        np.random.seed(0)
+        self._test_elastic_net(np.random.rand(100))
+
+    # ElasticNet with fit_intercept set to False
+    def test_elastic_net_no_intercept(self):
+        np.random.seed(0)
+        self._test_elastic_net(np.random.rand(100), fit_intercept=False)
+
     # RidgeCV test function to be parameterized
-    def _test_ridge_cv(self, y_input):
-        model = RidgeCV()
+    def _test_ridge_cv(self, y_input, fit_intercept=True):
+        model = RidgeCV(fit_intercept=fit_intercept)
 
         np.random.seed(0)
         X = np.random.rand(100, 200)
@@ -137,12 +255,19 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
         np.random.seed(0)
         self._test_ridge_cv(np.random.rand(100))
 
+    # RidgeCV with fit_intercept set to False
+    def test_ridge_cv_no_intercept(self):
+        np.random.seed(0)
+        self._test_ridge_cv(np.random.rand(100), fit_intercept=False)
+
     # LogisticRegressionCV test function to be parameterized
-    def _test_logistic_regression_cv(self, num_classes, solver="liblinear", multi_class="auto", labels_shift=0):
+    def _test_logistic_regression_cv(
+        self, num_classes, solver="liblinear", multi_class="auto", labels_shift=0, fit_intercept=True
+    ):
         if num_classes > 2:
-            model = LogisticRegressionCV(solver=solver, multi_class=multi_class, fit_intercept=True)
+            model = LogisticRegressionCV(solver=solver, multi_class=multi_class, fit_intercept=fit_intercept)
         else:
-            model = LogisticRegressionCV(solver="liblinear", fit_intercept=True)
+            model = LogisticRegressionCV(solver="liblinear", fit_intercept=fit_intercept)
 
         np.random.seed(0)
         X = np.random.rand(100, 200)
@@ -176,10 +301,14 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
         # this will not converge due to small test size
         self._test_logistic_regression_cv(3, multi_class="multinomial", solver="sag")
 
-    # SGDClassifier test function to be parameterized
-    def _test_sgd_classifier(self, num_classes):
+    # LogisticRegressionCV with fit_intercept set to False
+    def test_logistic_regression_cv_no_intercept(self):
+        self._test_logistic_regression_cv(3, fit_intercept=False)
 
-        model = SGDClassifier(loss="log")
+    # SGDClassifier test function to be parameterized
+    def _test_sgd_classifier(self, num_classes, fit_intercept=True):
+
+        model = SGDClassifier(loss="log_loss", fit_intercept=fit_intercept)
 
         np.random.seed(0)
         X = np.random.rand(100, 200)
@@ -200,10 +329,11 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
     def test_sgd_classifier_multi(self):
         self._test_sgd_classifier(3)
 
+    # SGDClassifier with fit_intercept set to False
+    def test_sgd_classifier_no_intercept(self):
+        self._test_sgd_classifier(3, fit_intercept=False)
+
     # SGDClassifier with modified huber loss
-    @unittest.skipIf(
-        LooseVersion(torch.__version__) < LooseVersion("1.6.0"), reason="Modified Huber loss test requires torch >= 1.6.0"
-    )
     def test_modified_huber(self):
         X = np.array([[-0.5, -1], [-1, -1], [-0.1, -0.1], [0.1, -0.2], [0.5, 1], [1, 1], [0.1, 0.1], [-0.1, 0.2]])
         Y = np.array([1, 1, 1, 1, 2, 2, 2, 2])
@@ -217,9 +347,6 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
         inputs = [[-1, -1], [1, 1], [-0.2, 0.1], [0.2, -0.1]]
         np.testing.assert_allclose(model.predict_proba(inputs), hb_model.predict_proba(inputs), rtol=1e-6, atol=1e-6)
 
-    @unittest.skipIf(
-        LooseVersion(torch.__version__) < LooseVersion("1.6.0"), reason="Modified Huber loss test requires torch >= 1.6.0"
-    )
     def test_modified_huber2(self):
         X = np.array([[-0.5, -1], [-1, -1], [-0.1, -0.1], [0.1, -0.2], [0.5, 1], [1, 1], [0.1, 0.1], [-0.1, 0.2]])
         Y = np.array([1, 1, 1, 1, 2, 2, 2, 2])
@@ -232,10 +359,6 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
 
         np.testing.assert_allclose(model.predict_proba(X), hb_model.predict_proba(X), rtol=1e-6, atol=1e-6)
 
-    # SGDClassifier with modified huber loss multiclass
-    @unittest.skipIf(
-        LooseVersion(torch.__version__) < LooseVersion("1.6.0"), reason="Modified Huber loss test requires torch >= 1.6.0"
-    )
     def test_modified_huber_multi(self):
         X = np.array([[-0.5, -1], [-1, -1], [-0.1, -0.1], [0.1, -0.2], [0.5, 1], [1, 1], [0.1, 0.1], [-0.1, 0.2]])
         Y = np.array([0, 1, 1, 1, 2, 2, 2, 2])
@@ -276,7 +399,7 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
 
     def test_float64_sgd_classifier(self):
 
-        model = SGDClassifier(loss="log")
+        model = SGDClassifier(loss="log_loss")
 
         np.random.seed(0)
         num_classes = 3
@@ -342,7 +465,7 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
     @unittest.skipIf(not (tvm_installed()), reason="TVM tests require TVM")
     def test_sgd_classifier_tvm(self):
 
-        model = SGDClassifier(loss="log")
+        model = SGDClassifier(loss="log_loss")
 
         np.random.seed(0)
         num_classes = 3
@@ -374,6 +497,36 @@ class TestSklearnLinearClassifiers(unittest.TestCase):
         self.assertTrue(tvm_model is not None)
 
         np.testing.assert_allclose(model.predict(X), tvm_model.predict(X), rtol=1e-6, atol=1e-3)
+
+    def test_tweedie_regressor(self):
+        clf = TweedieRegressor()
+        X = [[1, 2], [2, 3], [3, 4], [4, 3]]
+        y = [2, 3.5, 5, 5.5]
+
+        clf.fit(X, y)
+        hb_model = hummingbird.ml.convert(clf, "torch")
+
+        np.testing.assert_allclose(clf.predict([[1, 1], [3, 4]]), hb_model.predict([[1, 1], [3, 4]]), rtol=1e-6, atol=1e-3)
+
+    def test_poisson_regressor(self):
+        clf = PoissonRegressor()
+        X = [[1, 2], [2, 3], [3, 4], [4, 3]]
+        y = [12, 17, 22, 21]
+
+        clf.fit(X, y)
+        hb_model = hummingbird.ml.convert(clf, "torch")
+
+        np.testing.assert_allclose(clf.predict([[1, 1], [3, 4]]), hb_model.predict([[1, 1], [3, 4]]), rtol=1e-6, atol=1e-3)
+
+    def test_gamma_regressor(self):
+        clf = GammaRegressor()
+        X = [[1, 2], [2, 3], [3, 4], [4, 3]]
+        y = [19, 26, 33, 30]
+
+        clf.fit(X, y)
+        hb_model = hummingbird.ml.convert(clf, "torch")
+
+        np.testing.assert_allclose(clf.predict([[1, 1], [3, 4]]), hb_model.predict([[1, 1], [3, 4]]), rtol=1e-6, atol=1e-3)
 
 
 if __name__ == "__main__":

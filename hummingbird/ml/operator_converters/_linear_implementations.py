@@ -26,13 +26,15 @@ class LinearModel(PhysicalOperator, torch.nn.Module):
         is_linear_regression=False,
     ):
         super(LinearModel, self).__init__(logical_operator)
-        self.coefficients = torch.nn.Parameter(torch.from_numpy(coefficients), requires_grad=False)
-        self.intercepts = torch.nn.Parameter(torch.from_numpy(intercepts).view(-1), requires_grad=False)
+        self.coefficients = torch.nn.Parameter(torch.from_numpy(coefficients).detach().clone(), requires_grad=False)
+        self.intercepts = torch.nn.Parameter(torch.from_numpy(intercepts).view(-1).detach().clone(), requires_grad=False)
         self.classes = torch.nn.Parameter(torch.IntTensor(classes), requires_grad=False)
         self.multi_class = multi_class
         self.regression = is_linear_regression
         self.classification = not is_linear_regression
-        self.loss = loss if loss is not None else "log"
+        self.loss = loss
+        if self.loss is None and self.classification:
+            self.loss = "log"
 
         self.perform_class_select = False
         if min(classes) != 0 or max(classes) != len(classes) - 1:
@@ -48,6 +50,8 @@ class LinearModel(PhysicalOperator, torch.nn.Module):
         if self.multi_class == "multinomial":
             output = torch.softmax(output, dim=1)
         elif self.regression:
+            if self.loss == "log":
+                return torch.exp(output)
             return output
         else:
             if self.loss == "modified_huber":

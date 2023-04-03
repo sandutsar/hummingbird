@@ -7,9 +7,9 @@
 """
 Converters for topology IR are stored in this file.
 """
-from distutils.version import LooseVersion
 import numpy as np
 import os
+from packaging.version import Version, parse
 import torch
 from uuid import uuid4
 
@@ -153,7 +153,10 @@ def _compile_to_tvm(topology, executor, trace_input, target, ctx, config, extra_
 
     ts_model = _jit_trace(executor, trace_input, "cpu", extra_config)
     test_input = [
-        (topology.input_container.input_names[i], trace_input[i].shape if type(trace_input) is tuple else trace_input.shape,)
+        (
+            topology.input_container.input_names[i],
+            trace_input[i].shape if type(trace_input) is tuple else trace_input.shape,
+        )
         for i in range(len(topology.input_container.input_names))
     ]
 
@@ -200,7 +203,7 @@ def convert(topology, backend, test_input, device, extra_config={}):
 
     for operator in topology.topological_operator_iterator():
         converter = get_converter(operator.type)
-        if convert is None:
+        if converter is None:
             raise MissingConverter(
                 "Unable to find converter for {} type {} with extra config: {}.".format(
                     operator.type, type(getattr(operator, "raw_model", None)), extra_config
@@ -208,12 +211,14 @@ def convert(topology, backend, test_input, device, extra_config={}):
             )
 
         if backend == onnx.__name__:
-            # vers = LooseVersion(torch.__version__)
-            # allowed_min = LooseVersion("1.6.0")
-            # Pytorch <= 1.6.0 has a bug with exporting GEMM into ONNX.
-            # For the moment only tree_trav is enabled for pytorch <= 1.6.0
-            # if vers < allowed_min:
-            extra_config[constants.TREE_IMPLEMENTATION] = "tree_trav"
+            # Pytorch <= 1.4.0 has a bug with exporting GEMM into ONNX.
+            if parse(torch.__version__) <= Version("1.4"):
+                # Raise en error and warn user that the torch version is not supported with onnx backend
+                raise Exception(
+                    f"The current torch version {torch.__version__} is not supported with {backend} backend. "
+                    "Please use a torch version > 1.4 or change the backend."
+                )
+
         operator_map[operator.full_name] = converter(operator, device, extra_config)
 
     # Set the parameters for the model / container
@@ -250,7 +255,11 @@ def convert(topology, backend, test_input, device, extra_config={}):
             output_model_name = str(uuid4().hex) + ".onnx"
 
         # Put the tracing test input into the right format.
-        batch_trace_input, _ = _get_trace_input_from_test_input(test_input, remainder_size, extra_config)
+        batch_trace_input, remainder_input = _get_trace_input_from_test_input(test_input, remainder_size, extra_config)
+        # Supports dynamic batch size
+        dynamic_axes_cfg = {
+            k: {0: "sym"} for k in topology.input_container.input_names + topology.input_container.output_names
+        }
 
         # Generate the ONNX models
         torch.onnx.export(
@@ -259,6 +268,7 @@ def convert(topology, backend, test_input, device, extra_config={}):
             output_model_name,
             input_names=topology.input_container.input_names,
             output_names=topology.input_container.output_names,
+            dynamic_axes=dynamic_axes_cfg,
             keep_initializers_as_inputs=False,
             opset_version=target_opset,
             do_constant_folding=True,
@@ -266,47 +276,25 @@ def convert(topology, backend, test_input, device, extra_config={}):
         hb_model = onnx.load(output_model_name)
         os.remove(output_model_name)
 
+        if remainder_size:
+            torch.onnx.export(
+                executor,
+                remainder_input,
+                output_model_name,
+                input_names=topology.input_container.input_names,
+                output_names=topology.input_container.output_names,
+                dynamic_axes=dynamic_axes_cfg,
+                keep_initializers_as_inputs=False,
+                opset_version=target_opset,
+                do_constant_folding=True,
+            )
+            remainder_model = onnx.load(output_model_name)
+            os.remove(output_model_name)
+
         # Set the ONNX model name if any.
         if onnx_model_name is not None:
             hb_model.graph.name = onnx_model_name
 
-        # Fix the model to use arbitrary batch dimensions
-        def fix_dim(dim):
-            updated = False
-            if dim.HasField("dim_value"):
-                dim.Clear()
-                updated = True
-                dim.dim_param = "sym"
-
-            return updated
-
-        def fix_value_info(value):
-            num_fixed = 0
-            if value.type.HasField("tensor_type"):
-                shape = value.type.tensor_type.shape
-                if shape:
-                    dim = shape.dim[0]
-                    if fix_dim(dim):
-                        num_fixed += 1
-
-            return num_fixed
-
-        def fix_graph(graph):
-            num_fixed = 0
-            for input in graph.input:
-                num_fixed += fix_value_info(input)
-
-            for output in graph.output:
-                num_fixed += fix_value_info(output)
-
-            for node in graph.node:
-                for attr in node.attribute:
-                    if attr.HasField("g"):
-                        num_fixed += fix_graph(attr.g)
-
-            return num_fixed
-
-        fix_graph(hb_model.graph)
     elif backend == tvm_backend:
         # Pick the proper target.
         if device == "cuda":

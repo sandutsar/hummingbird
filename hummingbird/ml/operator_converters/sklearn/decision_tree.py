@@ -32,18 +32,8 @@ def convert_sklearn_random_forest_classifier(operator, device, extra_config):
 
     # Get tree information out of the model.
     tree_infos = operator.raw_operator.estimators_
-    n_features = operator.raw_operator.n_features_
+    n_features = operator.raw_operator.n_features_in_
     classes = operator.raw_operator.classes_.tolist()
-
-    # There is a bug in torch < 1.7.0 that causes a mismatch. See Issue #10
-    if len(classes) > 2:
-        from distutils.version import LooseVersion
-        import torch
-
-        if LooseVersion(torch.__version__) < LooseVersion("1.7.0"):
-            import warnings
-
-            warnings.warn("torch < 1.7.0 may give a mismatch on multiclass. See issue #10.")
 
     # For Sklearn Trees we need to know how many trees are there for normalization.
     extra_config[constants.NUM_TREES] = len(tree_infos)
@@ -82,7 +72,7 @@ def convert_sklearn_random_forest_regressor(operator, device, extra_config):
 
     # Get tree information out of the operator.
     tree_infos = operator.raw_operator.estimators_
-    n_features = operator.raw_operator.n_features_
+    n_features = operator.raw_operator.n_features_in_
 
     # For Sklearn Trees we need to know how many trees are there for normalization.
     extra_config[constants.NUM_TREES] = len(tree_infos)

@@ -2,9 +2,10 @@
 Tests sklearn KNeighbor model (KNeighborsClassifier, KNeighborsRegressor) converters.
 """
 import unittest
-import warnings
+from packaging.version import Version, parse
 
 import numpy as np
+import sklearn
 import torch
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn import datasets
@@ -27,13 +28,12 @@ class TestSklearnKNeighbors(unittest.TestCase):
             X = X.astype(np.float32)
 
             if metric == "wminkowski":
-                metric_params["w"] = np.random.rand(X.shape[1])
+                metric_params = {"w": np.random.rand(X.shape[1])}
             elif metric == "seuclidean":
-                metric_params["V"] = np.random.rand(X.shape[1])
+                metric_params = {"V": np.random.rand(X.shape[1])}
             elif metric == "mahalanobis":
                 V = np.cov(X.T)
-                metric_params["V"] = V
-                metric_params["VI"] = np.linalg.inv(V)
+                metric_params = {"VI": np.linalg.inv(V)}
 
             model = KNeighborsClassifier(
                 n_neighbors=n_neighbors, algorithm=algorithm, weights=weights, metric=metric, metric_params=metric_params
@@ -88,6 +88,10 @@ class TestSklearnKNeighbors(unittest.TestCase):
     #     self._test_kneighbors_classifier(3, metric="chebyshev", metric_params={})
 
     # KNeighborsClassifier wminkowski metric type
+    @unittest.skipIf(
+        parse(sklearn.__version__) > Version("1.0"),
+        reason="wminkowski metric is not supported anymore for sklearn > 1.0",
+    )
     def test_kneighbors_classifer_wminkowski(self):
         self._test_kneighbors_classifier(3, metric="wminkowski")
 
@@ -112,17 +116,18 @@ class TestSklearnKNeighbors(unittest.TestCase):
         metric_params={"p": 2},
         score_w_train_data=False,
     ):
-        for data in [datasets.load_boston(), datasets.load_diabetes()]:
-            X, y = data.data, data.target
+        for data in [datasets.fetch_california_housing(), datasets.load_diabetes()]:
+            # take all of diabetes and a subset of housing (which is slow to test otherwise)
+            X, y = data.data[0:441], data.target
             X = X.astype(np.float32)
 
             if metric == "wminkowski":
-                metric_params["w"] = np.random.rand(X.shape[1])
+                metric_params = {"w": np.random.rand(X.shape[1])}
             elif metric == "seuclidean":
-                metric_params["V"] = np.random.rand(X.shape[1])
+                metric_params = {"V": np.random.rand(X.shape[1])}
             elif metric == "mahalanobis":
                 V = np.cov(X.T)
-                metric_params["VI"] = np.linalg.inv(V)
+                metric_params = {"VI": np.linalg.inv(V)}
 
             model = KNeighborsRegressor(
                 n_neighbors=n_neighbors, algorithm=algorithm, weights=weights, metric=metric, metric_params=metric_params
@@ -177,6 +182,10 @@ class TestSklearnKNeighbors(unittest.TestCase):
     #     self._test_kneighbors_regressor(3, metric="chebyshev", metric_params={})
 
     # KNeighborsRegressor wminkowski metric type
+    @unittest.skipIf(
+        parse(sklearn.__version__) > Version("1.0"),
+        reason="wminkowski metric is not supported anymore for sklearn > 1.0",
+    )
     def test_kneighbors_regressor_wminkowski(self):
         self._test_kneighbors_regressor(3, metric="wminkowski")
 

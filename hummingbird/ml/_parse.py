@@ -601,6 +601,10 @@ def _parse_onnx_api(topology, model, inputs):
     initializers = [] if graph.initializer is None else [in_ for in_ in graph.initializer]
     node_list = LinkedNode.build_from_onnx(graph.node, [], inputs_names + [in_.name for in_ in initializers], output_names)
 
+    # Make sure the entire node_list isn't only 'Identity'
+    if all([x.op_type == 'Identity' for x in node_list]):
+        raise RuntimeError("ONNX model contained only Identity nodes {}.".format(node_list))
+
     # This a new node list but with some node been removed plus eventual variable renaming.
     new_node_list = _remove_zipmap(node_list)
 
@@ -620,6 +624,10 @@ def _parse_onnx_single_operator(topology, operator):
 
     # Identify nodes can just be skipped.
     if operator.op_type == "Identity":
+        if operator.origin.input[0] != operator.origin.output[0]:
+            variable = topology.variables[operator.origin.input[0]]
+            variable.raw_name = operator.origin.output[0]
+            variable.onnx_name = operator.origin.output[0]
         return
 
     # Add the operator in the topology.

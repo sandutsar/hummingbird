@@ -4,38 +4,36 @@ Tests lightgbm->onnxmltools->hb conversion for lightgbm models.
 import unittest
 import warnings
 
-import sys
-import os
-import pickle
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from onnxconverter_common.data_types import FloatTensorType
 
 from hummingbird.ml import convert
-from hummingbird.ml import constants
-from hummingbird.ml._utils import onnx_ml_tools_installed, onnx_runtime_installed
+from hummingbird.ml._utils import onnx_ml_tools_installed, onnx_runtime_installed, xgboost_installed
 
 if onnx_runtime_installed():
     import onnxruntime as ort
 if onnx_ml_tools_installed():
-    from onnxmltools.convert import convert_sklearn
+    from onnxmltools.utils.tests_helper import convert_model
+if xgboost_installed():
+    import xgboost as xgb
 
 
 class TestONNXDecisionTreeConverter(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestONNXDecisionTreeConverter, self).__init__(*args, **kwargs)
 
-    # Base test implementation comparing ONNXML and ONNX models.
-    def _test_decision_tree(self, X, model, extra_config={}):
-        # Create ONNX-ML model
-        onnx_ml_model = convert_sklearn(
-            model, initial_types=[("input", FloatTensorType([X.shape[0], X.shape[1]]))], target_opset=11
+    def _convert_decision_tree(self, X, model, extra_config={}):
+        onnx_ml_model, _ = convert_model(
+            model, "model", input_types=[("input", FloatTensorType([None, X.shape[1]]))], target_opset=11
         )
 
-        # Create ONNX model
         onnx_model = convert(onnx_ml_model, "onnx", X, extra_config)
+        return onnx_ml_model, onnx_model
 
+    # Base test implementation comparing ONNXML and ONNX models.
+    def _test_decision_tree(self, X, onnx_ml_model, onnx_model):
         # Get the predictions for the ONNX-ML model
         session = ort.InferenceSession(onnx_ml_model.SerializeToString())
         output_names = [session.get_outputs()[i].name for i in range(len(session.get_outputs()))]
@@ -63,19 +61,27 @@ class TestONNXDecisionTreeConverter(unittest.TestCase):
 
     # Utility function for testing regression models.
     def _test_regressor(self, X, model, rtol=1e-06, atol=1e-06, extra_config={}):
-        onnx_ml_pred, onnx_pred, output_names = self._test_decision_tree(X, model, extra_config)
+        onnx_ml_model, onnx_model = self._convert_decision_tree(X, model, extra_config)
+        onnx_ml_pred, onnx_pred, _ = self._test_decision_tree(X, onnx_ml_model, onnx_model)
 
         # Check that predicted values match
         np.testing.assert_allclose(onnx_ml_pred[0].ravel(), onnx_pred, rtol=rtol, atol=atol)
 
     # Utility function for testing classification models.
     def _test_classifier(self, X, model, rtol=1e-06, atol=1e-06, extra_config={}):
-        onnx_ml_pred, onnx_pred, output_names = self._test_decision_tree(X, model, extra_config)
-
-        np.testing.assert_allclose(onnx_ml_pred[1], onnx_pred[1], rtol=rtol, atol=atol)  # labels
-        np.testing.assert_allclose(
-            list(map(lambda x: list(x.values()), onnx_ml_pred[0])), onnx_pred[0], rtol=rtol, atol=atol
-        )  # probs
+        # convert model with entire dataset
+        onnx_ml_model, onnx_model = self._convert_decision_tree(X, model, extra_config)
+        # test model predictions with subset of data
+        for n in [1, len(X)]:
+            onnx_ml_pred, onnx_pred, _ = self._test_decision_tree(X[:n], onnx_ml_model, onnx_model)
+            np.testing.assert_allclose(onnx_ml_pred[1], onnx_pred[1], rtol=rtol, atol=atol)  # labels
+            np.testing.assert_allclose(
+                list(map(lambda x: x if isinstance(x, np.ndarray) else list(x.values()), onnx_ml_pred[0])),
+                onnx_pred[0],
+                rtol=rtol,
+                atol=atol,
+            )  # probs
+            np.testing.assert_equal(n, len(onnx_pred[0]))  # length
 
     # Regression.
     # Regression test with Decision Tree.
@@ -249,6 +255,25 @@ class TestONNXDecisionTreeConverter(unittest.TestCase):
 
         # Create the RandomForest model
         model = RandomForestClassifier(n_estimators=10)
+        model.fit(X, y)
+        self._test_classifier(X, model)
+
+    # Used to test whether BRANCH_LT operator is processed correctly.
+    @unittest.skipIf(
+        not (onnx_ml_tools_installed() and onnx_runtime_installed()), reason="ONNXML test require ONNX, ORT and ONNXMLTOOLS"
+    )
+    @unittest.skipIf(not xgboost_installed(), reason="ONNXML BRANCH_LT test requires XGBoost")
+    def test_xgboost_branch_lt(self):
+        warnings.filterwarnings("ignore")
+        n_features = 28
+        n_total = 100
+        np.random.seed(0)
+        X = np.random.rand(n_total, n_features)
+        X = np.array(X, dtype=np.float32)
+        y = np.random.randint(2, size=n_total)
+
+        # Create XGBoost Model
+        model = xgb.XGBClassifier()
         model.fit(X, y)
         self._test_classifier(X, model)
 

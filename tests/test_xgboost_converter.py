@@ -5,14 +5,19 @@ import unittest
 import warnings
 
 import numpy as np
+from sklearn.datasets import fetch_california_housing
+from sklearn.model_selection import train_test_split
 
 import hummingbird.ml
-from hummingbird.ml._utils import xgboost_installed, tvm_installed
+from hummingbird.ml._utils import xgboost_installed, tvm_installed, pandas_installed
 from hummingbird.ml import constants
 from tree_utils import gbdt_implementation_map
 
 if xgboost_installed():
     import xgboost as xgb
+
+if pandas_installed():
+    import pandas as pd
 
 
 class TestXGBoostConverter(unittest.TestCase):
@@ -23,7 +28,7 @@ class TestXGBoostConverter(unittest.TestCase):
         np.random.seed(0)
         X = np.random.rand(1, 1)
         X = np.array(X, dtype=np.float32)
-        y = np.random.randint(2, size=1)
+        y = np.array([0], dtype=int)
 
         for model in [xgb.XGBClassifier(n_estimators=1, max_depth=1), xgb.XGBRegressor(n_estimators=1, max_depth=1)]:
             for extra_config_param in ["tree_trav", "perf_tree_trav", "gemm"]:
@@ -216,13 +221,32 @@ class TestXGBoostConverter(unittest.TestCase):
             np.random.seed(0)
             X = np.random.rand(1, 1)
             X = np.array(X, dtype=np.float32)
-            y = np.random.randint(2, size=1)
+            y = np.array([0], dtype=int)
 
             model.fit(X, y)
 
             torch_model = hummingbird.ml.convert(model, "torch", [], extra_config={"tree_implementation": extra_config_param})
             self.assertIsNotNone(torch_model)
             np.testing.assert_allclose(model.predict_proba(X), torch_model.predict_proba(X), rtol=1e-06, atol=1e-06)
+
+    # Test xgboost with pandas.
+    @unittest.skipIf(not xgboost_installed() or not pandas_installed(), reason="test requires XGBoost and Pandas installed")
+    def test_run_xgb_pandas(self):
+        cali = fetch_california_housing()
+        data = pd.DataFrame(cali.data)
+        data.columns = cali.feature_names
+
+        X, y = data.iloc[:, :-1], data.iloc[:, -1]
+        # Split the data into training and testing dataset by taking train_size as 75%
+        X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=0.75, random_state=42)
+
+        model = xgb.XGBRegressor(colsample_bytree=0.3, learning_rate=0.1, max_depth=5, alpha=10, n_estimators=10)
+        model.fit(X_train, y_train)
+
+        torch_model = hummingbird.ml.convert(model, "torch")
+
+        self.assertIsNotNone(torch_model)
+        np.testing.assert_allclose(model.predict(X_test), torch_model.predict(X_test), rtol=1e-06, atol=1e-06)
 
     # Torchscript backends.
     # Test TorchScript backend regression.

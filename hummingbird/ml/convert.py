@@ -26,6 +26,8 @@ from ._utils import (
 )
 from .exceptions import MissingConverter, MissingBackend
 from .supported import backends
+from sklearn.utils import all_estimators
+from sklearn.utils.validation import check_is_fitted
 
 # Invoke the registration of all our converters.
 from . import operator_converters  # noqa
@@ -96,6 +98,8 @@ def _convert_sklearn(model, backend, test_input, device, extra_config={}):
     The supported operators and backends can be found at `hummingbird.ml.supported`.
     """
     assert model is not None
+    if type(model).__name__ in [e[0] for e in all_estimators()]:
+        assert check_is_fitted(estimator=model) is None
     assert_torch_installed()
 
     # Parse scikit-learn model as our internal data structure (i.e., Topology)
@@ -259,6 +263,9 @@ def _convert_onnxml(model, backend, test_input, device, extra_config={}):
     initializers = {} if model.graph.initializer is None else {in_.name: in_ for in_ in model.graph.initializer}
     extra_config[constants.ONNX_INITIALIZERS] = initializers
 
+    # Force constants.TREE_IMPLEMENTATION="tree_trav" as onnxml has a bug with "gemm".
+    extra_config[constants.TREE_IMPLEMENTATION] = "tree_trav"
+
     # Parse ONNX model as our internal data structure (i.e., Topology).
     topology = parse_onnx_api_model(model)
 
@@ -404,7 +411,7 @@ def convert(model, backend, test_input=None, device="cpu", extra_config={}):
     *Convert* supports [Sklearn], [LightGBM], [XGBoost], [ONNX], and [SparkML] models.
     For *LightGBM* and *XGBoost* currently only the Sklearn API is supported.
     The detailed list of models and backends can be found at `hummingbird.ml.supported`.
-    The *onnx* backend requires either a test_input of a the initial types set through the exta_config parameter.
+    The *onnx* backend works best with a test_input, but we try to generate one if none is provided.
     The *torch.jit* and *tvm* backends require a test_input.
     For *tvm* backend, the output container can do prediction only on the test data with the same size as test_input.
     [Sklearn]: https://scikit-learn.org/

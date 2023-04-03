@@ -74,7 +74,7 @@ def _get_iforest_anomaly_score_per_node(children_left, children_right, n_node_sa
     return _average_path_length(n_node_samples) + node_depth
 
 
-def _get_parameters_for_sklearn_iforest(tree_infos):
+def _get_parameters_for_sklearn_iforest(tree_infos, extra_config):
     """
     Parse sklearn-based isolation forest, replace existing values of node with anomaly score calculated in
     _get_iforest_anomaly_score_per_node
@@ -85,7 +85,7 @@ def _get_parameters_for_sklearn_iforest(tree_infos):
     Returns:
         The tree parameters wrapped into an instance of `operator_converters._tree_commons_TreeParameters`
     """
-    tree_parameters = get_parameters_for_sklearn_common(tree_infos)
+    tree_parameters = get_parameters_for_sklearn_common(tree_infos, extra_config)
     tree_parameters.values = _get_iforest_anomaly_score_per_node(
         tree_parameters.lefts, tree_parameters.rights, tree_infos.tree_.n_node_samples
     ).reshape(tree_parameters.values.shape)
@@ -221,7 +221,7 @@ def convert_sklearn_isolation_forest(operator, device, extra_config):
     assert operator is not None, "Cannot convert None operator"
 
     tree_infos = operator.raw_operator.estimators_
-    n_features = operator.raw_operator.n_features_
+    n_features = operator.raw_operator.n_features_in_
     # Following constants will be passed in the tree implementation to normalize the anomaly score.
     extra_config[constants.OFFSET] = operator.raw_operator.offset_
     if hasattr(operator.raw_operator, "threshold_"):

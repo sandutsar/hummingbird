@@ -1,7 +1,5 @@
-from distutils.core import setup
-from setuptools import find_packages
+from setuptools import find_packages, setup
 import os
-import sys
 
 this = os.path.dirname(__file__)
 
@@ -25,21 +23,22 @@ install_requires = [
     "numpy>=1.15",
     "onnxconverter-common>=1.6.0",
     "scipy",
-    "scikit-learn>=0.21.3",
-    "torch>=1.4",
+    "scikit-learn",
+    "torch>1.7.0",
     "psutil",
     "dill",
+    "protobuf>=3.20.2",
 ]
 onnx_requires = [
     "onnxruntime>=1.0.0",
-    "onnxmltools>=1.6.0",
+    "onnxmltools>=1.6.0,<=1.11.0",
     "skl2onnx>=1.7.0",
 ]
 extra_requires = [
     # The need each for these depends on which libraries you plan to convert from
     "xgboost>=0.90",
     "lightgbm>=2.2",
-    "prophet==1.0.1",
+    "prophet==1.1",
 ]
 setup(
     name="hummingbird-ml",
@@ -56,7 +55,7 @@ setup(
     install_requires=install_requires,
     extras_require={
         "tests": ["flake8", "pytest", "coverage", "pre-commit"],
-        "sparkml": ["pyspark>=2.4.4,<3.1.2", "pyarrow>1.0"],
+        "sparkml": ["pyspark>=2.4.4,<3.1.2", "pyarrow>1.0", "pandas<1.5.3"],
         "onnx": onnx_requires,
         "extra": extra_requires,
         "benchmark": onnx_requires + extra_requires + ["memory-profiler", "psutil"],
@@ -68,5 +67,5 @@ setup(
         "Operating System :: OS Independent",
         "License :: OSI Approved :: MIT License",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.8",
 )

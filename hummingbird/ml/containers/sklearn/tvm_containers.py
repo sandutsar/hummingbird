@@ -135,16 +135,7 @@ class TVMSklearnContainer(SklearnContainer):
         """
         assert tvm_installed(), "TVM Container requires TVM installed."
 
-        _load_param_dict = tvm._ffi.get_global_func("tvm.relay._load_param_dict")
-
-        # We borrow this function directly from Relay.
-        # Relay when imported tryies to download schedules data,
-        # but at inference time access to disk or network could be blocked.
-        def load_param_dict(param_bytes):
-            if isinstance(param_bytes, (bytes, str)):
-                param_bytes = bytearray(param_bytes)
-            load_arr = _load_param_dict(param_bytes)
-            return {v.name: v.array for v in load_arr}
+        from tvm.runtime.params import load_param_dict
 
         container = None
 

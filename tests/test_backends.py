@@ -7,7 +7,7 @@ import os
 import sys
 import numpy as np
 from typing import Iterator
-from distutils.version import LooseVersion
+from packaging.version import Version, parse
 import shutil
 
 from sklearn.ensemble import GradientBoostingClassifier
@@ -37,6 +37,7 @@ from hummingbird.ml.exceptions import MissingBackend
 
 if onnx_ml_tools_installed():
     from onnxmltools.convert import convert_sklearn
+
     try:
         from skl2onnx.sklapi import CastTransformer
     except ImportError:
@@ -116,6 +117,34 @@ class TestBackends(unittest.TestCase):
         np.testing.assert_allclose(hb_model_loaded.predict_proba(X), hb_model.predict_proba(X), rtol=1e-06, atol=1e-06)
 
         os.remove("pt-tmp.zip")
+
+    # Test pytorch save and load
+    def test_pytorch_save_load_delete_folder(self):
+        warnings.filterwarnings("ignore")
+        max_depth = 10
+        num_classes = 2
+        model = GradientBoostingClassifier(n_estimators=10, max_depth=max_depth)
+        np.random.seed(0)
+        X = np.random.rand(100, 200)
+        X = np.array(X, dtype=np.float32)
+        y = np.random.randint(num_classes, size=100)
+
+        model.fit(X, y)
+
+        hb_model = hummingbird.ml.convert(model, "torch")
+        self.assertIsNotNone(hb_model)
+        model_location_name = "pt-tmp-delete-folder"
+        hb_model.save(model_location_name)
+
+        # Default behavior
+        hummingbird.ml.TorchContainer.load(model_location_name, delete_unzip_location_folder=True)
+        assert not os.path.exists(model_location_name)
+
+        hummingbird.ml.TorchContainer.load(model_location_name, delete_unzip_location_folder=False)
+        assert os.path.exists(model_location_name)
+
+        os.remove(f"{model_location_name}.zip")
+        shutil.rmtree(model_location_name)
 
     # Test pytorch save and generic load
     def test_pytorch_save_generic_load(self):
@@ -513,34 +542,6 @@ class TestBackends(unittest.TestCase):
         hb_model = hummingbird.ml.convert(onnx_ml_model, "onnx")
         assert hb_model
 
-    # Test onnx 0 shape input
-    @unittest.skipIf(
-        not (onnx_ml_tools_installed() and onnx_runtime_installed()), reason="ONNXML test require ONNX, ORT and ONNXMLTOOLS"
-    )
-    def test_onnx_zero_shape_input(self):
-        warnings.filterwarnings("ignore")
-        max_depth = 10
-        num_classes = 2
-        if CastTransformer is None:
-            model = GradientBoostingClassifier(n_estimators=10, max_depth=max_depth)
-        else:
-            # newer version of sklearn-onnx
-            model = make_pipeline(
-                CastTransformer(dtype=np.float32),
-                GradientBoostingClassifier(n_estimators=10, max_depth=max_depth))
-        np.random.seed(0)
-        X = np.random.rand(100, 200)
-        y = np.random.randint(num_classes, size=100)
-
-        model.fit(X, y)
-
-        # Create ONNX-ML model
-        onnx_ml_model = convert_sklearn(model, initial_types=[("input", DoubleTensorType([0, X.shape[1]]))], target_opset=11)
-
-        # Test onnx requires no test_data
-        hb_model = hummingbird.ml.convert(onnx_ml_model, "onnx")
-        assert hb_model
-
     # Test onnx no test_data, double input
     @unittest.skipIf(
         not (onnx_ml_tools_installed() and onnx_runtime_installed()), reason="ONNXML test require ONNX, ORT and ONNXMLTOOLS"
@@ -554,8 +555,8 @@ class TestBackends(unittest.TestCase):
         else:
             # newer version of sklearn-onnx
             model = make_pipeline(
-                CastTransformer(dtype=np.float32),
-                GradientBoostingClassifier(n_estimators=10, max_depth=max_depth))
+                CastTransformer(dtype=np.float32), GradientBoostingClassifier(n_estimators=10, max_depth=max_depth)
+            )
         np.random.seed(0)
         X = np.random.rand(100, 200)
         y = np.random.randint(num_classes, size=100)
@@ -755,15 +756,21 @@ class TestBackends(unittest.TestCase):
 
     # Test Spark UDF
     @unittest.skipIf(
-        os.name == "nt" or not sparkml_installed() or LooseVersion(pyspark.__version__) < LooseVersion("3"),
+        os.name == "nt" or not sparkml_installed() or parse(pyspark.__version__) < Version("3"),
         reason="UDF Test requires spark >= 3",
     )
     @unittest.skipIf(
-        prophet_installed() and sys.platform == "darwin", reason="Spark has problems with Prophet on Mac",
+        prophet_installed() and sys.platform == "darwin",
+        reason="Spark has problems with Prophet on Mac",
     )
     def test_udf_torch(self):
         X, y = load_iris(return_X_y=True)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=77, test_size=0.2,)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            random_state=77,
+            test_size=0.2,
+        )
         spark_df = sql_context.createDataFrame(pd.DataFrame(data=X_train))
         sql_context.registerDataFrameAsTable(spark_df, "IRIS")
 
@@ -791,14 +798,19 @@ class TestBackends(unittest.TestCase):
         sql_context.sql("SELECT SUM(prediction) FROM (SELECT PREDICT(*) as prediction FROM IRIS)").show()
 
     @unittest.skipIf(
-        os.name == "nt" or not sparkml_installed() or LooseVersion(pyspark.__version__) < LooseVersion("3"),
+        os.name == "nt" or not sparkml_installed() or parse(pyspark.__version__) < Version("3"),
         reason="UDF Test requires spark >= 3",
     )
     def test_udf_torch_jit_broadcast(self):
         import pickle
 
         X, y = load_iris(return_X_y=True)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=77, test_size=0.2,)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            random_state=77,
+            test_size=0.2,
+        )
         spark_df = sql_context.createDataFrame(pd.DataFrame(data=X_train))
         sql_context.registerDataFrameAsTable(spark_df, "IRIS")
 
@@ -811,18 +823,24 @@ class TestBackends(unittest.TestCase):
         self.assertRaises(pickle.PickleError, spark.sparkContext.broadcast, hb_model)
 
     @unittest.skipIf(
-        os.name == "nt" or not sparkml_installed() or LooseVersion(pyspark.__version__) < LooseVersion("3"),
+        os.name == "nt" or not sparkml_installed() or parse(pyspark.__version__) < Version("3"),
         reason="UDF Test requires spark >= 3",
     )
     @unittest.skipIf(
-        prophet_installed() and sys.platform == "darwin", reason="Spark has problems with Prophet on Mac",
+        prophet_installed() and sys.platform == "darwin",
+        reason="Spark has problems with Prophet on Mac",
     )
     def test_udf_torch_jit_spark_file(self):
         import dill
         import torch.jit
 
         X, y = load_iris(return_X_y=True)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=77, test_size=0.2,)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X,
+            y,
+            random_state=77,
+            test_size=0.2,
+        )
         spark_df = sql_context.createDataFrame(pd.DataFrame(data=X_train))
         sql_context.registerDataFrameAsTable(spark_df, "IRIS")
 

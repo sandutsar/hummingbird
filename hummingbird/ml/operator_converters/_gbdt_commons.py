@@ -13,6 +13,7 @@ import numpy as np
 from . import constants
 from ._tree_commons import get_tree_params_and_type, get_parameters_for_tree_trav_common, get_parameters_for_gemm_common
 from ._tree_commons import (
+    PostTransform,
     ApplySigmoidPostTransform,
     ApplySoftmaxPostTransform,
     ApplyTweediePostTransform,
@@ -52,15 +53,7 @@ def convert_gbdt_classifier_common(
         n_classes -= 1
     if classes is None:
         classes = [i for i in range(n_classes)]
-    # There is a bug in torch < 1.7.0 that causes a mismatch. See Issue #10
-    if n_classes > 2:
-        from distutils.version import LooseVersion
-        import torch
 
-        if LooseVersion(torch.__version__) < LooseVersion("1.7.0"):
-            import warnings
-
-            warnings.warn("torch < 1.7.0 may give a mismatch on multiclass. See issue #10.")
     reorder_trees = True
     if constants.REORDER_TREES in extra_config:
         reorder_trees = extra_config[constants.REORDER_TREES]
@@ -134,7 +127,14 @@ def convert_gbdt_common(
 
     # Define the post transform.
     if constants.BASE_PREDICTION in extra_config:
-        base_prediction = torch.nn.Parameter(torch.FloatTensor(extra_config[constants.BASE_PREDICTION]), requires_grad=False)
+
+        base_pred = torch.FloatTensor(extra_config[constants.BASE_PREDICTION])
+
+        # For newer versions of scikit-learn (>1.1.1),
+        if len(base_pred.shape) == 4:
+            base_pred = base_pred[0][0]
+
+        base_prediction = torch.nn.Parameter(base_pred, requires_grad=False)
         extra_config[constants.BASE_PREDICTION] = base_prediction
 
     # For models following the Sklearn API we need to build the post transform ourselves.
@@ -161,6 +161,8 @@ def convert_gbdt_common(
                 extra_config[constants.POST_TRANSFORM] = ApplyTweedieBasePredictionPostTransform(base_prediction)
             else:
                 extra_config[constants.POST_TRANSFORM] = ApplyTweediePostTransform()
+        elif extra_config[constants.POST_TRANSFORM] is None:
+            extra_config[constants.POST_TRANSFORM] = PostTransform()
         else:
             raise NotImplementedError("Post transform {} not implemeneted yet".format(extra_config[constants.POST_TRANSFORM]))
     elif constants.BASE_PREDICTION in extra_config:
